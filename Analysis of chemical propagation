@@ -1,0 +1,272 @@
+import pandas as pd
+import statistics as stat
+from colour import Color 
+from matplotlib import pyplot as plt
+import math
+from scipy.optimize import curve_fit
+import random as rn
+import numpy as np
+
+#different plots types
+def line(x, m, c):
+    y= x*m+c
+    return y
+def log(x, A, B, C, D, E):
+    y = (np.log((x+E)*C)*A)+B*x + D
+    return y
+def constant(x,c):
+    y = c + x*0
+    return y
+def sigmoid(x, a, b, c):
+    y = a/(1+np.exp((x-c)*b))
+    return y
+
+"""
+This piece of code with produces two sets of data, one called peak_data and another called velocity_data. These correspond to
+the peak chemical concentration in the edges of the bacteria colony and the velocity of the chemical propagation
+
+
+"""
+counter=1
+
+distance_record = []
+distance_avg = 0
+distance_dev = 0
+
+time_record = []
+time_avg = 0 
+time_dev = 0
+
+threshold_records = []
+velocity_record = []
+
+velocity_data = []
+time_data = []
+distance_data = []
+
+velocity_error = []
+time_error = []
+
+threshold_counter = 3.0E1
+percentage = 10
+Threshold_power = 1
+number_count = percentage*10 
+percentage_data = []
+zero = []
+
+#lists to analyse the peak values:
+peak_record = []
+peak_data = []
+peak_error = []
+
+#percentage or number of bacteria
+#while percentage <=100:
+#for threshold
+while Threshold_power <=14:
+    while counter<16:
+        #changing percentage of bacteria
+        file_path = "C:/Users/hugom/eclipse-workspace/bsim/results/Changing Bacteria percentage 1.3/Bacteria A percentage {0}/B(T)=3e20 and A(T)=3e2  Ecoli_test_{1}.csv".format(percentage,counter)
+        #changing number of bacteria
+        #file_path = "C:/Users/hugom/eclipse-workspace/bsim/results/Changing Bacteria number 1.2/Number of Bacteria A{0}/A(T)=3e2  Ecoli_test_{1}.csv".format(number_count,counter)        
+        #changing threshold
+        #file_path = "C:/Users/hugom/eclipse-workspace/bsim/results/Changing bacteria threshold/ Threshold 3.0E{0}/Threshold 3.0E{0} Ecoli_test_{1}.csv".format(Threshold_power,counter)                
+        Chemical_Data = pd.read_csv (file_path)
+        df = pd.DataFrame(Chemical_Data)
+        distance_travelled = 0
+        threshold = (10**6)
+
+        column_index = 1
+        row_index = 0
+        
+        #goes through column elements and tells you if threshold is reached somewhere in column
+        while column_index<31:
+            #(len(df.iloc[0:, column_index])-1)
+            while row_index<(len(df.iloc[0:, column_index])-1):
+                if df.iloc[row_index, column_index] > threshold:
+                    distance_travelled+=1
+                    time = row_index
+                    break
+                row_index+=1
+            column_index+=1
+            row_index = 0
+        #added this to ignore missfire tests
+        if max(df.iloc[0:, column_index])>0:
+            distance_record.append(distance_travelled)
+            time_record.append(time)
+            velocity_record.append(distance_travelled/time)
+        
+        #peak analysis
+        
+        #here the last collumns of the data are imported to the code to be manipulated. 
+        globals()[f"column_{counter}"]=list(df.iloc[0:,32])
+        
+        #here peaks are added to a seperate list
+        if max(globals()[f"column_{counter}"])>0:
+            peak_record.append(max(globals()[f"column_{counter}"]))
+        counter+=1
+
+    print("percentage " + str(percentage))
+    print("Data: " + str(velocity_record))
+    #gets distance at which last peak was reached
+    distance_avg = stat.mean(distance_record)
+    distance_dev = stat.stdev(distance_record)
+    #gets time at which threshold was passed.
+    time_avg = stat.mean(time_record)
+    time_dev = stat.stdev(time_record)
+    
+    velocity_dev = stat.stdev(velocity_record)
+    velocity_error.append(velocity_dev)
+    velocity_data.append(distance_avg/time_avg)
+    
+    percentage_data.append(3*(10**Threshold_power))
+    time_data.append(time_avg)
+    time_error.append(time_dev)
+    distance_data.append(distance_avg)
+    
+    #analysis of peak data is carried out. mean is added to the data peaks and st dev is added to error list.
+    peak_dev = stat.stdev(peak_record)
+    peak_avg = stat.mean(peak_record)
+    peak_data.append(peak_avg)
+    peak_error.append(peak_dev)
+
+    #record lists are cleared so that averages can be carried out without conflict. 
+    time_record = []
+    distance_record = []
+    velocity_record = []
+    peak_record = []
+    
+    counter=1
+    print(number_count)
+
+    #if percentage>=10:
+    percentage+=10
+    number_count = percentage*10
+    if percentage<10:
+        percentage+=1
+    Threshold_power+=1
+
+#here the type of graph for the concentration peak is analysed
+plot = "log"
+#-------------------------------------------------------peak plot------------------------------------------------------------
+
+#here you shall find the data for the peak changes with percentage. 
+plt.scatter(percentage_data, peak_data)
+
+plt.errorbar(percentage_data, peak_data, yerr = peak_error,fmt='o',ecolor = 'lightgreen',color='darkgreen')
+plt.title("Chemical peak against Bacteria Threshold")
+plt.xlabel("Bacteria Threshold")
+plt.xscale("log")
+plt.ylabel("Concentration Peak")
+
+
+#change x value depending on what line is wanted
+#percentage_data=np.asarray(percentage_data)
+
+percentage_data=np.asarray(percentage_data, dtype=float)
+peak_data=np.asarray(peak_data, dtype=float)
+
+#change x value depending on what line is wanted
+if plot == "line":    
+    PARAMETERS, covariance = curve_fit(line, percentage_data, peak_data)
+    fit_A = PARAMETERS[0]
+    fit_B = PARAMETERS[1]
+    fit_Y = line(percentage_data, fit_A, fit_B)
+    peak_at_percentage = list(map(lambda x :line(x, fit_A, fit_B), percentage_data))
+
+if plot == "log":
+    PARAMETERS, covariance = curve_fit(log, percentage_data, peak_data, bounds =([0,0,0,0,1],[1e12,1e12,1e12,1e12,300]))
+    fit_A = PARAMETERS[0]
+    fit_B = PARAMETERS[1]
+    fit_C = PARAMETERS[2]
+    fit_D = PARAMETERS[3]
+    fit_E = PARAMETERS[4]
+    fit_Y= log(percentage_data, fit_A, fit_B, fit_C, fit_D, fit_E)
+    peak_at_percentage = list(map(lambda x :log(x, fit_A, fit_B, fit_C, fit_D, fit_E), percentage_data))
+
+if plot == "constant":    
+    PARAMETERS, covariance = curve_fit(constant, percentage_data, peak_data, bounds = (0,12e9))
+    fit_A = PARAMETERS[0]
+    fit_Y = constant(percentage_data, fit_A)
+    peak_at_percentage = list(map(lambda x :constant(x, fit_A), percentage_data))
+
+if plot == "sigmoid":    
+    PARAMETERS, covariance = curve_fit(sigmoid, percentage_data, peak_data, bounds =([0,0,0],[3e9,0.00001,1]))
+    fit_A = PARAMETERS[0]
+    fit_B = PARAMETERS[1]
+    fit_C = PARAMETERS[2]
+    fit_Y= sigmoid(percentage_data, fit_A, fit_B, fit_C)
+    peak_at_percentage = list(map(lambda x :sigmoid(x, fit_A, fit_B, fit_C), percentage_data))
+    
+print(PARAMETERS)
+plt.plot(percentage_data, fit_Y, 'green')
+plt.plot()
+
+plt.show()
+#-------------------------------------------------------recidue plot------------------------------------------------------------
+
+zero= [0]*len(percentage_data)
+recidue_graph = np.subtract(peak_data, peak_at_percentage)
+    
+plt.plot(percentage_data, recidue_graph,"o")
+plt.errorbar(percentage_data, recidue_graph, yerr = peak_error,fmt='o',ecolor = 'lightgreen',color='darkgreen')
+plt.plot(percentage_data, zero,"green")
+plt.title("Recidue of Peak")
+plt.xlabel("Bacteria Threshold")
+plt.xscale("log")
+plt.ylabel("Peak recidue")
+percentage = 1
+plt.show()
+
+#--------------------------------------------------------velocity plot-------------------------------------------------------------
+plot = "log"
+
+
+plt.scatter(percentage_data, velocity_data)
+
+plt.errorbar(percentage_data, velocity_data, yerr = velocity_error,fmt='o',ecolor = 'lightgreen',color='darkgreen')
+plt.title("Velocity vs Percentage of Bacteria A")
+plt.xlabel("Percentage of Bacteria A")
+plt.ylabel("Velocity")
+
+
+percentage_data=np.asarray(percentage_data)
+velocity_data=np.asarray(velocity_data)
+#change x value depending on what line is wanted
+
+if plot == "line":    
+    PARAMETERS, covariance = curve_fit(line, percentage_data, velocity_data)
+    fit_A = PARAMETERS[0]
+    fit_B = PARAMETERS[1]
+    fit_Y = line(percentage_data, fit_A, fit_B)
+    velocity_at_percentage = list(map(lambda x :line(x, fit_A, fit_B), percentage_data))
+
+if plot == "log":
+    Parameters, covariance = curve_fit(log, percentage_data, velocity_data)
+    fit_A = Parameters[0]
+    fit_B = Parameters[1]
+    fit_C = Parameters[2]
+    fit_D = Parameters[3]
+    fit_E = Parameters[4]
+    fit_Y= log(percentage_data, fit_A, fit_B, fit_C, fit_D, fit_E)
+    velocity_at_percentage = list(map(lambda x :log(x, fit_A, fit_B, fit_C, fit_D, fit_E), percentage_data))
+
+print(Parameters)
+plt.plot(percentage_data, fit_Y, 'green')
+plt.plot()
+
+plt.show()
+
+
+#--------------------------------------------recidue plot----------------------------------------------------
+
+recidue_graph = np.subtract(velocity_data, velocity_at_percentage)
+zero= [0]*len(percentage_data)
+
+plt.plot(percentage_data, recidue_graph,"o")
+plt.errorbar(percentage_data, recidue_graph, yerr = velocity_error,fmt='o',ecolor = 'lightgreen',color='darkgreen')
+plt.plot(percentage_data, zero,"green")
+plt.title("Recidue of velocity")
+plt.xlabel("Percentage of Bacteria A")
+plt.ylabel("Velocity Recidue")
+
+plt.show()
